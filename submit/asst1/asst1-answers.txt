@@ -27,30 +27,16 @@ cpu0: MIPS/161 (System/161 2.x) features 0x0
 
 === GIT LOG ===
 
-sys161: System/161 release 2.0.3, compiled Sep  5 2025 01:55:11
+commit 6bd56a3f92560da9b3158c29fb982b1bf886dec8 (tag: asst1-start)
+Author: Weng Foon Timothy Soon <e1123198@u.nus.edu>
+Date:   Thu Sep 4 17:50:14 2025 -0700
 
-OS/161 base system version 1.99.08
-Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
-   President and Fellows of Harvard College.  All rights reserved.
+    Initial commit
 
-Put-your-group-name-here's system version 0 (DUMBVM #1)
+=== GIT TAG ===
 
-292k physical memory available
-Device probe...
-lamebus0 (system main bus)
-emu0 at lamebus0
-ltrace0 at lamebus0
-ltimer0 at lamebus0
-beep0 at ltimer0
-rtclock0 at ltimer0
-lrandom0 at lamebus0
-random0 at lrandom0
-lhd0 at lamebus0
-lhd1 at lamebus0
-lser0 at lamebus0
-con0 at lser0
-
-cpu0: MIPS/161 (System/161 2.x) features 0x0
+soonami67@timcom:~/cpen331/individual-timosoon$ git tag
+asst1-start
 
 === Question 1 ===
 
@@ -109,4 +95,78 @@ Afterwards, `configure` needs to be rerun only if it depends on a change in conf
 
 === Question 14 ===
 
-The first function that is run is `__start()` at `/kern/arch/sys161/main` 
+The first function that is run is `__start()` at `/kern/arch/sys161/main`
+
+GDB output:
+(gdb) db
+__start () at ../../arch/sys161/main/start.S:54
+54         addiu sp, sp, -24
+
+=== Question 15 ===
+
+The first instruction that executes is `addiu sp, sp, -24`.
+
+=== Question 16 ===
+
+(gdb) info breakpoints
+Num     Type           Disp Enb Address    What
+1       breakpoint     keep y   0x80014a0c in menu at ../../main/menu.c:697
+2       breakpoint     keep y   0x800139e4 in kmain at ../../main/main.c:211
+
+=== Question 17 ===
+
+The execution begins in `start.S`. It sets up a stack frame for the kernel to use, fluses the instruction cache, and initializes CPU-specific state such as the status register, CPU number, and the GP register. After this, it executes `kmain`.
+
+=== Question 18 ===
+
+`jal kmain`
+
+=== Question 19 ===
+
+211             boot();
+(gdb) enter
+Undefined command: "enter".  Try "help".
+(gdb) step
+boot () at ../../main/main.c:99
+99              kprintf("\n");
+(gdb) next
+100             kprintf("OS/161 base system version %s\n", BASE_VERSION);
+(gdb) 
+101             kprintf("%s", harvard_copyright);
+(gdb) 
+102             kprintf("\n");
+(gdb) 
+104             kprintf("Put-your-group-name-here's system version %s (%s #%d)\n",
+(gdb) 
+106             kprintf("\n");
+(gdb) 
+109             ram_bootstrap();
+(gdb) next
+110             proc_bootstrap();
+(gdb) 
+111             thread_bootstrap();
+
+=== Question 20 ===
+
+(gdb) print *bootcpu
+Cannot access memory at address 0x80000
+
+=== Question 21 ===
+
+(gdb) print *bootcpu
+$1 = {c_self = 0x8003af00, c_number = 0, c_hardware_number = 0, c_curthread = 0x8003bf80, c_zombies = {tl_head = {tln_prev = 0x0, 
+      tln_next = 0x8003af1c, tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af10, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, 
+  c_hardclocks = 0, c_spinlocks = 0, c_isidle = false, c_runqueue = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af44, tln_self = 0x0}, 
+    tl_tail = {tln_prev = 0x8003af38, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, c_runqueue_lock = {splk_lock = 0, 
+    splk_holder = 0x0}, c_ipi_pending = 0, c_shootdown = {{ts_placeholder = 0} <repeats 16 times>}, c_numshootdown = 0, c_ipi_lock = {
+    splk_lock = 0, splk_holder = 0x0}}
+
+=== Question 22 ===
+
+(gdb) print allcpus
+$1 = {arr = {v = 0x0, num = 0, max = 0}}
+
+=== Question 23 ===
+
+(gdb) print allcpus
+$3 = {arr = {v = 0x80039fe0, num = 1, max = 4}}
