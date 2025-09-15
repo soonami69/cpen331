@@ -1,0 +1,112 @@
+=== SYSTEM161 KERNEL ===
+
+sys161: System/161 release 2.0.3, compiled Sep  5 2025 01:55:11
+
+OS/161 base system version 1.99.08
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights reserved.
+
+Put-your-group-name-here's system version 0 (DUMBVM #1)
+
+292k physical memory available
+Device probe...
+lamebus0 (system main bus)
+emu0 at lamebus0
+ltrace0 at lamebus0
+ltimer0 at lamebus0
+beep0 at ltimer0
+rtclock0 at ltimer0
+lrandom0 at lamebus0
+random0 at lrandom0
+lhd0 at lamebus0
+lhd1 at lamebus0
+lser0 at lamebus0
+con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0
+
+=== GIT LOG ===
+
+sys161: System/161 release 2.0.3, compiled Sep  5 2025 01:55:11
+
+OS/161 base system version 1.99.08
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights reserved.
+
+Put-your-group-name-here's system version 0 (DUMBVM #1)
+
+292k physical memory available
+Device probe...
+lamebus0 (system main bus)
+emu0 at lamebus0
+ltrace0 at lamebus0
+ltimer0 at lamebus0
+beep0 at ltimer0
+rtclock0 at ltimer0
+lrandom0 at lamebus0
+random0 at lrandom0
+lhd0 at lamebus0
+lhd1 at lamebus0
+lser0 at lamebus0
+con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0
+
+=== Question 1 ===
+
+The first line of OS/161 code that occurs when an exception is encountered is the first line of the function mips_general_handler. Control goes to `common_exception`, which sets up a trapframe and calls `mips_trap`. For interrupts, they go through `common_exception` as well, but `mips_trap` handles it differently.
+
+=== Question 2 ===
+
+System calls are executed in `traps.c`, specifically in line 216, where syscalls are dispatched to a function in `kern/syscall.h`.
+
+=== Question 3 ===
+
+The libc functions in `common/libc` are shared between kernel and userland. Libc functions in `userland/lib/libc` is specifically for user programs, for example, `userland/lib/libc/arch/mips/syscalls-mips.S` contain stubs that make a `syscall` trap into the kernel.
+
+=== Question 4 ===
+
+Configure specifies a path to install the compiled system, passed into the --ostree argument. The configuration can be invalidated and should be rerun if you want to change the location the compiled programs are installed to. 
+Configure also determines whether the programs are compiled with debug information. This should be rerun if you want to compile the programs with/without debugging information.
+
+=== Question 5 ===
+
+Machine-dependent code relies on hardware-specific details,such as the instruction set and registers. Having machine-dependent and machine-independent code separated allows easier portability- if one wants to write a kernel for a new architecture, they only need to rewrite the machine-dependent code for the new machine.
+
+=== Question 6 ===
+
+A trapframe is 37 registers long, meaning that it is 37 * 4 bytes = 148 bytes large.
+
+=== Question 7 ===
+
+You re-run the kern/conf/config script when you want to change the configuration of the kernel build, e.g. when you want to change from DUMBVM to GENERIC.
+
+=== Question 8 ===
+
+You rerun `bmake depend` if changing header file inclusions, or after rerunning config.
+
+=== Question 9 ===
+
+You rerun `bmake` and `bmake install` when needing to rebuild files, for example after changing configuration or changing source files.
+
+=== Question 10 ===
+
+I would add a new function in `kern/main/menu.c` (called cmd_hello) that prints "Hello World!". Then, I would add the function to the `cmdtable[]` struct with the function, such as:
+{ "hello", cmd_hello }
+
+=== Question 11 ===
+
+The user programs built for OS161 are compiled to run inside the simulated OS161 environment, and not the host machine. The standard utilities present on the host machine contain assumptions about the host kernel that differ from OS161, making them incompatible.
+
+=== Question 12 ===
+
+
+
+=== Question 13 ===
+
+I would define a new syscall number in `kern/include/kern/syscall.h`, then handle the case in `kern/arch/mips/syscall/syscall.c` by adding it to the switch statment in the `syscall` function.
+Afterwards, `configure` needs to be rerun only if it depends on a change in configuration options. `bmake depend`, `bmake` and `bmake install` should be run.
+
+=== Question 14 ===
+
+The first function that is run is `__start()` at `/kern/arch/sys161/main` 
