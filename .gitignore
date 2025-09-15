@@ -1,0 +1,13 @@
+defs.mk
+.vscode
+/build
+/kern/compile
+os161-cpen331-docker.tar
+os161-cpen331-docker/
+/userland
+/kern/build
+
+# im not sure if this should be excluded
+LHD*.img
+root/
+sys161.conf
