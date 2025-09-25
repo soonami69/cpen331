@@ -1,0 +1,46 @@
+=== Question 1 ===
+
+When a thread exits, it is first detached from its current process. Then, it checks if the stack has been corrupted, before turning off interrupts. It then sets its own state to "S_ZOMBIE", meaning that it is not expected to run again as it switches to another thread.
+
+When a thread sleeps, it first checks to see if it is in an interrupt handler, then checks to see if it holds the spinlock for the wait channel. Then, it sleeps on the wait channel, giving up the wait channel until it is awoken.
+
+=== Question 2 ===
+
+`thread_switch` and `switchframe_switch` handle the context switching.
+
+=== Question 3 ===
+
+S_RUN -> Thread is currently running
+S_READY -> Thread is ready to run but not currently running on a CPU
+S_SLEEP -> Thread is sleeping, halting execution until it is awoken.
+S_ZOMBIE -> Thread has finished executing and should not be executed again. Its stack and resources still exist and need to be cleaned up.
+
+=== Question 4 ===
+
+Turning interrupts off means that the CPU will not respond to interrupts such as timers, devices, hardware events or other asynchronous events. This is accomplished by calling the `cpu_irqoff` or `cpu_irqon` functions, which sets the status register to a predefined constant that means "interrupts on" or "interrupts off". This ensures that critical sections can run uninterrupted, preventing race conditions or other issues.
+
+=== Question 5 ===
+
+First, the thread checks to see if it holds the spinlock of the wait channel the thread is sleeping on. Then, it makes the target runnable by setting its state to ready and adding it to the tail of the runqueue of the target cpu.
+
+=== Question 6 ===
+
+It is handled in `thread_switch`, namely by removing the thread from `curcpu` via `threadlist_remhead`, sets it as the current thread, and calls `switchframe_switch` to set the next thread to run.
+
+=== Question 7 ===
+
+The cpu uses a queue. The threads are chosen from the front of the queue (the first thread to enter the queue)
+
+=== Question 8 ===
+
+The hardware timer periodically causes an interrupt, which makes will cause the CPU to stop executing the current thread and switch to another scheduled thread.
+
+This is handled by the `hardclock` function.
+
+=== Question 9 ===
+
+The wait channels allow the semaphores to block the threads. In the Semaphore P operation, if the value is graeter than 0, it decrements the counter and continues. If the value is 0, the thread cannot proceed, so it calls `wchan_sleep`, which adds it to the associated wait channel and sleeps the thread. In the Semaphore V operation, the semaphore value is incremented. If there are threads in the wait channel, `wchan_wakeone` allows the semaphore to unblock one sleeping thread to resume execution.
+
+=== Question 10 ===
+
+Each wait channel has an associated spinlock that protects both sleeping and waking operations. A thread that wants to sleep first acquires this spinlock, then adds itself to the wait channel’s queue before releasing the lock. Only after the thread is fully enqueued can another thread acquire the spinlock to perform a wakeup. This ensures that no wakeup signal can be lost in between.
