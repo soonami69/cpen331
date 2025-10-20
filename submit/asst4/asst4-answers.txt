@@ -1,0 +1,63 @@
+Question 1:
+
+The ELF magic numbers are the first four bytes of an ELF file, used to identify it as an ELF executable. The bytes are 7F, 45, 4c, 46.
+
+Question 2:
+
+They seem to do the same thing, in uio.c, the same code runs whether it is UIO_USERSPACE or UIO_USERISPACE. In load_segment(), UIO_USERISPACE is used for executables, while UIO_USERSPACE is used for user memory/data. One should use USER_SYSSPACE when the buffer is in kernel memory, such as temporary kernel buffers, kernel data structures or any memory that the kernel has allocated and fully controls.
+
+Question 3:
+
+The struct uio is a temporary descriptor and does not contain the data itself. The real data is stored in the buffer(s) pointed to by the iovec struct, which hold the pointer and length.
+
+Question 4:
+
+In runprogram(), load_elf() finishes loading the program into user memory, after which the file is no longer needed. Before we run enter_new_process(), it is important to call vfs_close as control never returns, meaning that if we do not call it, we cannot clean it up, which can leak resources such as file descriptors or even prevent other processes from modifying the file.
+
+Question 5:
+
+The function is mips_usermode(). As it runs MIPS instructions, to set registers and switch the CPU to user privilege, it is machine dependent.
+
+Question 6:
+
+Copyin and copyout are defined in copyinout.c, in kern/vm, while memmove is defined in common/libc/string. We can't implement copyin/copyout using memmove as user memory is untrusted and may be invalid or unmapped. Memmove copies memory blindly and will crash the kernel if it accesses an invalid user pointer. Copyin and copyout perform safety checks and handle faults, ensuring that the kernel can safely copy between user and kernel memory.
+
+Question 7:
+
+It is a special pointer type to mark pointers that refer to user-space memory. It is type distinct from other pointers, so the compiler can warn if a kernel pointer has been mistakenly used instead. It helps to improve clarity and safety.
+
+Question 8:
+
+The exception code is 8, as per trapframe.h
+
+Question 9:
+
+The size of an instruction is 4 bytes, as evidenced by incrementing the program counter by 4 to avoid executing the same instruction again (i.e. going to the next instruction)
+
+Question 10:
+
+Currently, kill_curthread() will panic the kernel and crash it. This is not what we want kill_curthread to do. Instead, we would want to terminate the current user process that caused the fault.
+
+Question 11:
+
+During a system call, four arguments are passed into registers a0 to a3. To support more arguments, we need to place the extra arguments onto the user stack, and then copy them in using copyin from the user stack pointer saved in the trapframe.
+
+Question 12:
+
+The macro creates a thin wrapper function in user space that sets the syscall number and jumps to a generic handler (__syscall) which traps into the kernel. It allows user programs to call syscalls as if they were normal C functions.
+
+Question 13:
+
+The mips instruction is 'syscall', called as the first instruction of the __syscall label.
+
+Question 14:
+
+In OS/161 on MIPS, the first three 32-bit syscall arguments are passed in the trapframe registers $a0 (tf->tf_a0), $a1 (tf->tf_a1), and $a2 (tf->tf_a2). A 64-bit return value is returned with the low 32 bits in $v0 (tf->tf_v0) and the high 32 bits in $v1 (tf->tf_v1).
+
+Question 15:
+
+In OS/161, the kernel function used to open a file is vfs_open(). To read from a file, the macro VOP_READ() is used, and to write to a file, VOP_WRITE() is used. Open files in the kernel are represented by struct vnode, which is an abstract representation of a file.
+
+Question 16:
+
+VOP_INCREF and VOP_DECREF are used to manage reference counts on a vnode. VOP_INCREF increments the reference count, signalling that an additional part of the kernel is using the file. VOP_DECREF decrements the reference count, so if it reaches zero, the vnode can be safely destroyed, ensuring that vnodes are not freed while still in use.
