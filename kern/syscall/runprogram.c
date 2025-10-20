@@ -36,6 +36,7 @@
 #include <types.h>
 #include <kern/errno.h>
 #include <kern/fcntl.h>
+#include <kern/unistd.h>
 #include <lib.h>
 #include <proc.h>
 #include <current.h>
@@ -44,6 +45,8 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <fdtable.h>
+#include <file.h>
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -56,6 +59,7 @@ runprogram(char *progname)
 {
 	struct addrspace *as;
 	struct vnode *v;
+	struct file *f_stdin, *f_stdout, *f_stderr;
 	vaddr_t entrypoint, stackptr;
 	int result;
 
@@ -64,6 +68,31 @@ runprogram(char *progname)
 	if (result) {
 		return result;
 	}
+
+	result = file_open("con:", O_RDONLY, 0, &f_stdin);
+	if (result) {
+		vfs_close(v);
+		return result;
+	}
+
+	result = file_open("con:", O_WRONLY, 0, &f_stdout);
+	if (result) {
+		vfs_close(v);
+		file_close(f_stdin);
+		return result;
+	}
+
+	result = file_open("con:", O_WRONLY, 0, &f_stderr);
+	if (result) {
+		vfs_close(v);
+		file_close(f_stdin);
+		file_close(f_stdout);
+		return result;
+	}
+
+	fdtable_set(curproc->p_fdtable, STDIN_FILENO, f_stdin);
+	fdtable_set(curproc->p_fdtable, STDOUT_FILENO, f_stdout);
+	fdtable_set(curproc->p_fdtable, STDERR_FILENO, f_stderr);
 
 	/* We should be a new process. */
 	KASSERT(proc_getas() == NULL);

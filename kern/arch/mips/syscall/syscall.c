@@ -35,6 +35,8 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+#include <endian.h>
+#include <copyinout.h>
 
 
 /*
@@ -109,7 +111,54 @@ syscall(struct trapframe *tf)
 				 (userptr_t)tf->tf_a1);
 		break;
 
-	    /* Add stuff here */
+		case SYS_open:
+		err = sys_open((const_userptr_t)tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_read:
+		err = sys_read(tf->tf_a0, (userptr_t)tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_write:
+		err = sys_write(tf->tf_a0, (userptr_t)tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_lseek:
+		{
+			off_t offset, newpos;
+			int whence;
+
+			join32to64(tf->tf_a2, tf->tf_a3, (uint64_t *)&offset);
+			err = copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
+			if (err) {
+				break;
+			}
+
+			err = sys_lseek(tf->tf_a0, offset, whence, &newpos);
+			if (err) {
+				break;
+			}
+
+			split64to32(newpos, &tf->tf_v0, &tf->tf_v1);
+			retval = tf->tf_v0;
+		}
+		break;
+
+		case SYS_close:
+		err = sys_close(tf->tf_a0);
+		break;
+
+		case SYS_dup2:
+		err = sys_dup2(tf->tf_a0, tf->tf_a1, &retval);
+		break;
+
+		case SYS_chdir:
+		err = sys_chdir((const_userptr_t)tf->tf_a0);
+		break;
+
+		case SYS___getcwd:
+		err = sys___getcwd((userptr_t)tf->tf_a0, tf->tf_a1, &retval);
+		break;
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
