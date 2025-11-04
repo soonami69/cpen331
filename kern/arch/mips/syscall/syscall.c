@@ -37,6 +37,8 @@
 #include <syscall.h>
 #include <endian.h>
 #include <copyinout.h>
+#include <proc.h>
+#include <addrspace.h>
 
 
 /*
@@ -160,7 +162,19 @@ syscall(struct trapframe *tf)
 		err = sys___getcwd((userptr_t)tf->tf_a0, tf->tf_a1, &retval);
 		break;
 
-	    default:
+        case SYS_fork:
+            err = sys_fork(tf, &retval);
+            break;
+
+        case SYS_getpid:
+            err = sys_getpid(&retval);
+            break;
+
+        case SYS_waitpid:
+            err = sys_waitpid(tf->tf_a0, (userptr_t)tf->tf_a1, tf->tf_a2, &retval);
+            break;
+
+        default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
 		break;
@@ -203,8 +217,24 @@ syscall(struct trapframe *tf)
  *
  * Thus, you can trash it and do things another way if you prefer.
  */
-void
-enter_forked_process(struct trapframe *tf)
-{
-	(void)tf;
+void enter_forked_process(void* data1, unsigned long data2) {
+    struct trapframe tf;
+    struct proc* child = curproc;  // current thread’s proc
+    (void)data2;
+
+    KASSERT(data1 != NULL);
+    memcpy(&tf, data1, sizeof(struct trapframe));
+    kfree(data1);  // free heap copy now
+
+    /* Activate child AS */
+    proc_setas(child->p_addrspace);
+    as_activate();
+
+    /* Set fork return values for child */
+    tf.tf_v0 = 0; /* return 0 in child */
+    tf.tf_epc += 4; /* advance past the syscall instruction */
+    tf.tf_a3 = 0; /* no error code */
+
+    mips_usermode(&tf);
+    panic("enter_forked_process: mips_usermode returned");
 }

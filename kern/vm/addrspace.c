@@ -66,13 +66,11 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+    KASSERT(old != NULL);
 
-	(void)old;
+	newas = as_create();
 
-	*ret = newas;
+    *ret = newas;
 	return 0;
 }
 

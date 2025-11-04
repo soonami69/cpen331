@@ -49,6 +49,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <fdtable.h>
+#include <pid.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -91,7 +92,20 @@ proc_create(const char *name)
 		return NULL;
 	}
 
-	return proc;
+    if (strcmp(name, "[kernel]") != 0) {
+        struct pid_entry* pe = pid_alloc(proc);
+        if (!pe) {
+            fdtable_destroy(proc->p_fdtable);
+            kfree(proc->p_name);
+            kfree(proc);
+            return NULL;
+        }
+        proc->p_pidentry = pe;
+    } else {
+        proc->p_pidentry = NULL;  // kernel process has no PID
+    }
+
+    return proc;
 }
 
 /*
@@ -120,7 +134,13 @@ proc_destroy(struct proc *proc)
 	 * incorrect to destroy it.)
 	 */
 
-	/* VFS fields */
+	/* PID system cleanup */
+	if (proc->p_pidentry) {
+        pid_release(proc->p_pidentry);
+        proc->p_pidentry = NULL;
+    }
+
+    /* VFS fields */
 	if (proc->p_cwd) {
 		VOP_DECREF(proc->p_cwd);
 		proc->p_cwd = NULL;
@@ -233,7 +253,7 @@ proc_create_runprogram(const char *name)
 	}
 	spinlock_release(&curproc->p_lock);
 
-	return newproc;
+    return newproc;
 }
 
 /*

@@ -39,6 +39,7 @@
 #include <spinlock.h>
 #include <thread.h> /* required for struct threadarray */
 #include <fdtable.h> /* required for struct fdtable */
+#include <pid.h>
 
 struct addrspace;
 struct vnode;
@@ -59,6 +60,8 @@ struct proc {
 
 	/* Filetable */
 	struct fdtable *p_fdtable;	/* file descriptor table */
+
+    struct pid_entry *p_pidentry; /* pointer to pid_entry for this proc */
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */

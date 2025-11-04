@@ -13,5 +13,6 @@ int fdtable_add(struct fdtable *fdt, struct file* f, int *retval);
 int fdtable_get(struct fdtable *fdt, int fd, struct file** retval);
 int fdtable_remove(struct fdtable *fdt, int fd, struct file** retval);
 int fdtable_set(struct fdtable *fdt, int fd, struct file* f);
+struct fdtable* fdtable_clone(struct fdtable* parent_fdt);
 
 #endif /* _FDTABLE_H_ */

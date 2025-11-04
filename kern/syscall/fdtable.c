@@ -96,3 +96,32 @@ fdtable_set(struct fdtable *fdt, int fd, struct file* vn)
     fdt->fd_files[fd] = vn;
     return 0;
 }
+
+/* Helper to clone a fdtable */
+struct fdtable* fdtable_clone(struct fdtable* parent_fdt) {
+    if (parent_fdt == NULL) {
+        return NULL;
+    }
+
+    struct fdtable* child_fdt = fdtable_init();
+    if (child_fdt == NULL) {
+        return NULL;
+    }
+
+    for (int fd = 0; fd < OPEN_MAX; fd++) {
+        struct file* f = NULL;
+        if (fdtable_get(parent_fdt, fd, &f) == 0 && f != NULL) {
+            // Increment refcount on the file object
+            file_incref(f);
+
+            // Set the file in the child FD table
+            if (fdtable_set(child_fdt, fd, f) != 0) {
+                // On failure, clean up
+                fdtable_destroy(child_fdt);
+                return NULL;
+            }
+        }
+    }
+
+    return child_fdt;
+}
