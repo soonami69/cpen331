@@ -8,6 +8,7 @@
 #include <proc.h>
 #include <syscall.h>
 #include <addrspace.h>
+#include <copyinout.h>
 
 
 int sys_getpid(pid_t *retval) {
@@ -22,16 +23,32 @@ int sys_getpid(pid_t *retval) {
     return 0;
 }
 
-/*
- * Stub for waitpid until fork is implemented
- */
 int sys_waitpid(pid_t pid, userptr_t status, int options, pid_t* retval) {
-    (void)pid;
-    (void)status;
-    (void)options;
-    (void)retval;
+    if (options != 0){
+        return EINVAL;
+    }
 
-    return ENOSYS; /* Not implemented yet */
+    if (pid < PID_MIN || pid > PID_MAX){
+        return ESRCH;
+    }
+
+    struct pid_entry *pe = pid_lookup(pid);
+
+    int waitcode;
+    pid_wait(pe, &waitcode);
+
+    pid_release(pe);
+
+    if (status != NULL){
+        int result = copyout(&waitcode, (userptr_t)status, sizeof(int32_t));
+        if (result) {
+            return result;
+        }
+    }
+
+    *retval = pid;
+
+    return 0;
 }
 
 int sys_fork(struct trapframe* tf, pid_t* retval) {
