@@ -374,13 +374,13 @@ file      vfs/devnull.c
 # calls assignment.)
 #
 
-file      syscall/fdtable.c
-file      syscall/file_syscalls.c
-file      syscall/file.c
+file      syscall/filetable.c
 file      syscall/loadelf.c
+file      syscall/openfile.c
 file      syscall/runprogram.c
+file      syscall/file_syscalls.c
+file      syscall/proc_syscalls.c
 file      syscall/time_syscalls.c
-file      syscall/sysproc.c
 
 #
 # Startup and initialization
@@ -429,19 +429,12 @@ defoption netfs
 
 ########################################
 #                                      #
-#  Synchronization problems assignment #
-#                                      #
-########################################
-
-defoption synchprobs
-optfile   synchprobs  synchprobs/airballoon.c
-
-
-########################################
-#                                      #
 #              Test code               #
 #                                      #
 ########################################
+
+# For testing the wait implementation.
+file		test/waittest.c
 
 file		test/arraytest.c
 file		test/bitmaptest.c

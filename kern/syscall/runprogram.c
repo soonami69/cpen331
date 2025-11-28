@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009, 2014
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,10 +43,74 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <vfs.h>
+#include <openfile.h>
+#include <filetable.h>
 #include <syscall.h>
 #include <test.h>
-#include <fdtable.h>
-#include <file.h>
+
+/*
+ * Open a file on a selected file descriptor. Takes care of various
+ * minutiae, like the vfs-level open destroying pathnames.
+ */
+static
+int
+placed_open(const char *path, int openflags, int fd)
+{
+	struct openfile *newfile, *oldfile;
+	char mypath[32];
+	int result;
+
+	/*
+	 * The filename comes from the kernel, in fact right in this
+	 * file; assume reasonable length. But make sure we fit.
+	 */
+	KASSERT(strlen(path) < sizeof(mypath));
+	strcpy(mypath, path);
+
+	result = openfile_open(mypath, openflags, 0664, &newfile);
+	if (result) {
+		return result;
+	}
+
+	/* place the file in the filetable in the right slot */
+	filetable_placeat(curproc->p_filetable, newfile, fd, &oldfile);
+
+	/* the table should previously have been empty */
+	KASSERT(oldfile == NULL);
+
+	return 0;
+}
+
+/*
+ * Open the standard file descriptors: stdin, stdout, stderr.
+ *
+ * Note that if we fail part of the way through we can leave the fds
+ * we've already opened in the file table and they'll get cleaned up
+ * by process exit.
+ */
+static
+int
+open_stdfds(const char *inpath, const char *outpath, const char *errpath)
+{
+	int result;
+
+	result = placed_open(inpath, O_RDONLY, STDIN_FILENO);
+	if (result) {
+		return result;
+	}
+
+	result = placed_open(outpath, O_WRONLY, STDOUT_FILENO);
+	if (result) {
+		return result;
+	}
+
+	result = placed_open(errpath, O_WRONLY, STDERR_FILENO);
+	if (result) {
+		return result;
+	}
+
+	return 0;
+}
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -59,7 +123,6 @@ runprogram(char *progname)
 {
 	struct addrspace *as;
 	struct vnode *v;
-	struct file *f_stdin, *f_stdout, *f_stderr;
 	vaddr_t entrypoint, stackptr;
 	int result;
 
@@ -69,33 +132,23 @@ runprogram(char *progname)
 		return result;
 	}
 
-	result = file_open("con:", O_RDONLY, 0, &f_stdin);
-	if (result) {
-		vfs_close(v);
-		return result;
-	}
-
-	result = file_open("con:", O_WRONLY, 0, &f_stdout);
-	if (result) {
-		vfs_close(v);
-		file_close(f_stdin);
-		return result;
-	}
-
-	result = file_open("con:", O_WRONLY, 0, &f_stderr);
-	if (result) {
-		vfs_close(v);
-		file_close(f_stdin);
-		file_close(f_stdout);
-		return result;
-	}
-
-	fdtable_set(curproc->p_fdtable, STDIN_FILENO, f_stdin);
-	fdtable_set(curproc->p_fdtable, STDOUT_FILENO, f_stdout);
-	fdtable_set(curproc->p_fdtable, STDERR_FILENO, f_stderr);
-
 	/* We should be a new process. */
 	KASSERT(proc_getas() == NULL);
+
+	/* Set up stdin/stdout/stderr if necessary. */
+	if (curproc->p_filetable == NULL) {
+		curproc->p_filetable = filetable_create();
+		if (curproc->p_filetable == NULL) {
+			vfs_close(v);
+			return ENOMEM;
+		}
+
+		result = open_stdfds("con:", "con:", "con:");
+		if (result) {
+			vfs_close(v);
+			return result;
+		}
+	}
 
 	/* Create a new address space. */
 	as = as_create();

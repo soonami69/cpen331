@@ -1,0 +1,19 @@
+Solution set 1 (locks) was written by David A. Holland and Daniel Margo.
+
+------------------------------------------------------------
+
+(Also see CHANGES.)
+
+20140924 dholland	locks-1.99.08 released.
+20140123 dholland	locks-1.99.07 released.
+20140122 dholland	lock_acquire should assert if you lock your own lock.
+20131106 dholland	Adjust to wchan changes in base.
+
+20100107 dholland	Fix volatility of struct lock->lk_holder.
+
+20080219 dholland	sol1-1.99.02 released.
+20080219 dholland	Mention solution code in the bootup text.
+20080213 dholland	Fix some silly problems.
+20080210 dholland	New locks and CVs implementation for OS/161 2.x.
+20080210 dmargo		Solution for the bathroom problem.
+20080210 dmargo		Import old whalemating solution.

@@ -40,13 +40,13 @@
 #include <clock.h>
 #include <thread.h>
 #include <proc.h>
-#include <pid.h>
 #include <current.h>
 #include <synch.h>
 #include <vm.h>
 #include <mainbus.h>
 #include <vfs.h>
 #include <device.h>
+#include <pid.h>
 #include <syscall.h>
 #include <test.h>
 #include <version.h>
@@ -99,6 +99,7 @@ boot(void)
 
 	kprintf("\n");
 	kprintf("OS/161 base system version %s\n", BASE_VERSION);
+	kprintf("(with locks/CVs, file/proc system calls solutions)\n");
 	kprintf("%s", harvard_copyright);
 	kprintf("\n");
 
@@ -108,10 +109,10 @@ boot(void)
 
 	/* Early initialization. */
 	ram_bootstrap();
-    pid_bootstrap();
-    proc_bootstrap();
-    thread_bootstrap();
-    hardclock_bootstrap();
+	proc_bootstrap();
+	thread_bootstrap();
+	pid_bootstrap();
+	hardclock_bootstrap();
 	vfs_bootstrap();
 	kheap_nextgeneration();
 

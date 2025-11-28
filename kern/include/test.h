@@ -36,12 +36,12 @@
  */
 
 
-/* This is only actually available if OPT_SYNCHPROBS is set. */
-int airballoon(int, char **);
-
 /*
  * Test code.
  */
+
+/* For testing the wait implementation. */
+int waittest(int, char **);
 
 /* data structure tests */
 int arraytest(int, char **);

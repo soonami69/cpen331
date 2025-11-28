@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009, 2014
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,47 +28,44 @@
  */
 
 /*
- * Process ID managment.
+ * File handles.
  */
 
-#ifndef _PID_H_
-#define _PID_H_
+#ifndef _OPENFILE_H_
+#define _OPENFILE_H_
 
+#include <spinlock.h>
 
-#define INVALID_PID	0	/* nothing has this pid */
-#define KERNEL_PID	1	/* kernel proc has this pid */
 
 /*
- * Initialize pid management.
+ * Structure for open files.
+ *
+ * This is pretty much just a wrapper around a vnode; the important
+ * additional things we keep here are the open mode and the file's
+ * seek position.
+ *
+ * Open files are reference-counted because they get shared via fork
+ * and dup2 calls. And they need locking because that sharing can be
+ * among multiple concurrent processes.
  */
-void pid_bootstrap(void);
+struct openfile {
+	struct vnode *of_vnode;
+	int of_accmode;	/* from open: O_RDONLY, O_WRONLY, or O_RDWR */
 
-/*
- * Get a pid for a new thread.
- */
-int pid_alloc(pid_t *retval);
+	struct lock *of_offsetlock;	/* lock for of_offset */
+	off_t of_offset;
 
-/*
- * Undo pid_alloc (may blow up if the target has ever run)
- */
-void pid_unalloc(pid_t targetpid);
+	struct spinlock of_reflock;	/* lock for of_refcount */
+	int of_refcount;
+};
 
-/*
- * Disown a pid (abandon interest in its exit status)
- */
-void pid_disown(pid_t targetpid);
+/* open a file (args must be kernel pointers; destroys filename) */
+int openfile_open(char *filename, int openflags, mode_t mode,
+		  struct openfile **ret);
 
-/*
- * Set the exit status of the current thread to status.  Wakes up any threads
- * waiting to read this status, and decrefs the current thread's pid.
- */
-void pid_setexitstatus(int status);
-
-/*
- * Causes the current thread to wait for the thread with pid PID to
- * exit, returning the exit status when it does.
- */
-int pid_wait(pid_t targetpid, int *status, int flags, pid_t *retpid);
+/* adjust the refcount on an openfile */
+void openfile_incref(struct openfile *);
+void openfile_decref(struct openfile *);
 
 
-#endif /* _PID_H_ */
+#endif /* _OPENFILE_H_ */
