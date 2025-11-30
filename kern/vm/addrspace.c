@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <lib.h>
 #include <addrspace.h>
+#include <proc.h>
 #include <vm.h>
 
 /*
@@ -49,11 +50,72 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
+	/* Initialize pagetable. */
+    as->pt = pagetable_create();
+	if (!as->pt) {
+        kfree(as);
+        return NULL;
+    }
 
-	return as;
+    as->region_list = NULL;
+
+	/* Heap should be empty and grows from 0 */
+    as->heap_start = 0;
+    as->heap_end = 0;
+
+    as->stack_base = USERSTACK;
+
+    return as;
+}
+
+static int region_copy(struct region *src, struct region **ret) {
+    struct region* new_head = NULL;
+    struct region* prev = NULL;
+
+	while(src) {
+		struct region *r = kmalloc(sizeof(struct region));
+
+		if (!r) {
+			/* Free all we've made thus far */
+			struct region *tmp = new_head;
+			while (tmp) {
+				struct region *next = tmp->next;
+                kfree(tmp);
+                tmp = next;
+            }
+            return ENOMEM;
+        }
+
+		/* copy the region fields */
+        r->as_vbase = src->as_vbase;
+        r->as_npages = src->as_npages;
+        r->read = src->read;
+        r->write = src->write;
+        r->exec = src->exec;
+        r->next = NULL;
+
+		if (prev) {
+            prev->next = r;
+        } else {
+            new_head = r;
+        }
+
+        prev = r;
+        src = src->next;
+    }
+
+    *ret = new_head;
+    return 0;
+}
+
+static void region_destroy(struct region *r) {
+    struct region *curr = r;
+
+	while (curr) {
+        struct region *next = curr->next;
+        kfree(curr);
+        curr = next;
+    }
 }
 
 int
@@ -66,13 +128,28 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+    int err;
 
-	(void)old;
+    err = pagetable_copy(old->pt, &newas->pt);
 
-	*ret = newas;
+	if (err) {
+        as_destroy(newas);
+        return err;
+    }
+
+    err = region_copy(old->region_list, &newas->region_list);
+
+	if (err) {
+        as_destroy(newas);
+        return err;
+    }
+
+    newas->heap_start = old->heap_start;
+    newas->heap_end = old->heap_end;
+
+    newas->stack_base = old->stack_base;
+
+    *ret = newas;
 	return 0;
 }
 
@@ -83,7 +160,10 @@ as_destroy(struct addrspace *as)
 	 * Clean up as needed.
 	 */
 
-	kfree(as);
+    region_destroy(as->region_list);
+    pagetable_destroy(as->pt);
+
+    kfree(as);
 }
 
 void
@@ -91,7 +171,7 @@ as_activate(void)
 {
 	struct addrspace *as;
 
-	as = curproc_getas();
+	as = proc_getas();
 	if (as == NULL) {
 		/*
 		 * Kernel thread without an address space; leave the
@@ -100,9 +180,9 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+    /*
+     * Write this. ROY IMPLEMENT THIS <-------
+     */
 }
 
 void
@@ -129,39 +209,64 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	/* we want to round the npages up */
+    size_t npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
+    
+	/* round down base to get a nice boundary */
+	vaddr_t vbase = vaddr & PAGE_FRAME;
 
-	(void)as;
-	(void)vaddr;
-	(void)sz;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return EUNIMP;
+    struct region* r = kmalloc(sizeof(struct region));
+	if (!r) {
+        return ENOMEM;
+    }
+
+    r->as_vbase = vbase;
+    r->as_npages = npages;
+    r->read = readable;
+    r->write = writeable;
+    r->exec = executable;
+    r->next = NULL;
+
+    if (as->region_list == NULL) {
+        as->region_list = r;
+    } else {
+        struct region* curr = as->region_list;
+        while (curr->next) {
+            curr = curr->next;
+        }
+        curr->next = r;
+    }
+
+    return 0;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
-	return 0;
+	/* This function turns writing on for all regions */
+    struct region* r = as->region_list;
+    while (r) {
+        r->write = 1;
+        r = r->next;
+    }
+    return 0;
 }
 
 int
 as_complete_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+    struct region* r = as->region_list;
+    while (r) {
+        /* only text segment which was exec should not be writable */
+        if (r->exec && !r->write) {
+            r->write = 0;
+        }
 
-	(void)as;
-	return 0;
+        // Other regions like data/BSS are already correct
+        r = r->next;
+    }
+
+    return 0;
 }
 
 int

@@ -9,5 +9,4 @@ os161-cpen331-docker/
 
 # im not sure if this should be excluded
 LHD*.img
-root/
-sys161.conf
+/root/sockets

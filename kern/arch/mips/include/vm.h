@@ -66,6 +66,9 @@
  * a valid address, and will make a *huge* mess if you scribble on it.
  */
 #define PADDR_TO_KVADDR(paddr) ((paddr)+MIPS_KSEG0)
+#define KVADDR_TO_PADDR(kvaddr) ((kvaddr)-MIPS_KSEG0)
+#define PPAGE_TO_PADDR(pp_num)  ((pp_num)*PAGE_SIZE)
+#define PADDR_TO_PPAGE(addr)    ((addr) / PAGE_SIZE)
 
 /*
  * The top of user space. (Actually, the address immediately above the

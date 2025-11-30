@@ -37,6 +37,7 @@
 
 #include <vm.h>
 #include "opt-dumbvm.h"
+#include <pagetable.h>
 
 struct vnode;
 
@@ -48,6 +49,15 @@ struct vnode;
  * You write this.
  */
 
+struct region {
+    vaddr_t as_vbase; /* starting point */
+    size_t as_npages;
+    int read; /* permission bits */
+    int write;
+    int exec;
+    struct region* next;
+};
+
 struct addrspace {
 #if OPT_DUMBVM
         vaddr_t as_vbase1;
@@ -58,7 +68,15 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+    struct pagetable* pt;
+
+    struct region* region_list; /* linked list of memory regions */
+
+    vaddr_t heap_start;
+    vaddr_t heap_end;
+
+    vaddr_t stack_base;
+
 #endif
 };
 
@@ -74,6 +92,8 @@ struct addrspace {
  *                an old one. Probably calls as_create to get a new
  *                empty address space and fill it in, but that's up to
  *                you.
+ * 
+ *    region_copy - recursively copies the region linked list.
  *
  *    as_activate - make curproc's address space the one currently
  *                "seen" by the processor.
@@ -103,7 +123,8 @@ struct addrspace {
  * functions are found in dumbvm.c.
  */
 
-struct addrspace *as_create(void);
+struct addrspace*
+as_create(void);
 int               as_copy(struct addrspace *src, struct addrspace **ret);
 void              as_activate(void);
 void              as_deactivate(void);

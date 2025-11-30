@@ -44,6 +44,18 @@
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
+typedef __u32 pp_num_t;
+
+struct cm_entry {
+    bool used;
+    bool kmalloc_end;
+    bool dirty;
+    pp_num_t pp_num;
+};
+
+struct coremap {
+    struct cm_entry *entries;
+};
 
 /* Initialization function */
 void vm_bootstrap(void);
