@@ -1,8 +1,10 @@
 #include <types.h>
 #include <thread.h>
 #include <kern/errno.h>
+#include <addrspace.h>
 #include <vm.h>
 #include <synch.h>
+#include <proc.h>
 
 struct coremap *cm;
 struct spinlock cm_spinlock = SPINLOCK_INITIALIZER;
@@ -15,6 +17,36 @@ static inline bool is_pp_used(pp_num_t pp_num) {
     KASSERT(pp_num < last_page);
 
     return cm->entries[pp_num].used;
+}
+
+static inline void free_ppage(pp_num_t p) {
+    KASSERT(first_page <= p && p < last_page);
+
+    cm->entries[p].used = false;
+    cm->entries[p].kmalloc_end = false;
+    cm_page_count--;
+}
+
+static bool is_valid_address(struct addrspace* as, vaddr_t vaddr) {
+    /* check regions */
+    struct region* r = as->region_list;
+    while (r != NULL) {
+        if (vaddr >= r->as_vbase && vaddr < r->as_vbase + r->as_npages * PAGE_SIZE) {
+            return true;
+        }
+        r = r->next;
+    }
+
+    /* Check heap */
+    if (vaddr >= as->heap_start && vaddr < as->heap_end) {
+        return true;
+    }
+
+    if (vaddr < USERSTACK && vaddr >= as->stack_base) {
+        return true;
+    }
+
+    return false;
 }
 
 /* Function to find n free pages from a start point */
@@ -48,14 +80,6 @@ static void kalloc_ppage(pp_num_t pp_num) {
     cm->entries[pp_num].pp_num = pp_num;
     cm->entries[pp_num].kmalloc_end = false;
     cm_page_count++;
-}
-
-static inline void free_ppage(pp_num_t p) {
-    KASSERT(first_page <= p && p < last_page);
-
-    cm->entries[p].used = false;
-    cm->entries[p].kmalloc_end = false;
-    cm_page_count--;
 }
 
 void vm_bootstrap() {
@@ -100,12 +124,6 @@ void vm_bootstrap() {
     }
 
     spinlock_release(&cm_spinlock);
-}
-
-int vm_fault(int faulttype, vaddr_t faultaddress) {
-    (void)faulttype;
-    (void)faultaddress;
-    return 0;
 }
 
 vaddr_t alloc_kpages(unsigned npages) {
@@ -170,6 +188,118 @@ void free_kpages(vaddr_t addr) {
     if (!held_spinlock) {
         spinlock_release(&cm_spinlock);
     }
+}
+
+static int get_region_permissions(struct addrspace *as, vaddr_t vaddr, 
+                                    bool *readable, bool *writeable, bool *executable) {
+    KASSERT(as != NULL);
+
+    struct region* r = as->region_list;
+    while (r != NULL) {
+        if (vaddr >= r->as_vbase && vaddr < r->as_vbase + r->as_npages * PAGE_SIZE) {
+            *readable = r->read;
+            *writeable = r->write;
+            *executable = r->exec;
+            return 0;
+        }
+        r = r->next;
+    }
+
+    /* Check heap, always read-write & not executable */
+    if (vaddr >= as->heap_start && vaddr < as->heap_end) {
+        *readable = true;
+        *writeable = true;
+        *executable = false;
+        return 0;
+    }
+
+    /* Same with stack */
+    if (vaddr < USERSTACK && vaddr >= as->stack_base) {
+        *readable = true;
+        *writeable = true;
+        *executable = false;
+        return 0;
+    }
+
+    return EFAULT;
+}
+
+int vm_fault(int faulttype, vaddr_t faultaddress) {
+    struct addrspace *as;
+    paddr_t paddr;
+    int result;
+
+    as = proc_getas();
+    if (as == NULL) {
+        return EFAULT;
+    }
+
+    /* Acquire lock for addresspace */
+    lock_acquire(as->as_lock);
+
+    /* Check if the fault address is within range */
+    if (!is_valid_address(as, faultaddress)) {
+        lock_release(as->as_lock);
+        return EFAULT;
+    }
+
+    struct pte* entry = pagetable_lookup(as->pt, faultaddress);
+
+    /* If no mapping exists, create a new page */
+    if (entry == NULL || !entry->valid) {
+        paddr = alloc_kpages(1);
+
+        if (paddr == 0) {
+            lock_release(as->as_lock);
+            return ENOMEM;
+        }
+
+        /* Zero the page */
+        bzero((void*)PADDR_TO_KVADDR(paddr), PAGE_SIZE);
+
+        /* Check region permissions */
+        bool readable, writeable, executable;
+
+        result = get_region_permissions(as, faultaddress, &readable, &writeable, &executable);
+
+        if (result) {
+            free_kpages(PADDR_TO_KVADDR(paddr));
+            lock_release(as->as_lock);
+            return EFAULT;
+        }
+
+        bool readonly = !writeable;
+
+        result = pagetable_insert(as->pt, faultaddress, paddr, readonly);
+        
+        if (result) {
+            lock_release(as->as_lock);
+            return result;
+        }
+
+        entry = pagetable_lookup(as->pt, faultaddress);
+        KASSERT(entry != NULL && entry->valid && entry->in_mem);
+    } else if (!entry->in_mem) {
+        lock_release(as->as_lock);
+        panic("Swapping to disk not implemented yet?\n");
+    }
+
+    /* Check permissions based on fault type */
+    if (faulttype == VM_FAULT_READONLY && entry->readonly) {
+        lock_release(as->as_lock);
+        return EFAULT;
+    }
+
+    if (faulttype == VM_FAULT_WRITE) {
+        entry->dirty = true;
+    }
+
+    /*
+     * TODO: TLB SHENANIGANS HERE
+     */
+
+    lock_release(as->as_lock);
+    return 0;
 }
 
 void vm_tlbshootdown_all(void) {

@@ -90,12 +90,9 @@ int pagetable_copy(struct pagetable *src, struct pagetable **ret) {
 struct pte* pagetable_lookup(struct pagetable* pt, vaddr_t vaddr) {
     KASSERT(pt != NULL);
 
-    /* Extract VPN from vaddr (remove page offset) */
-    uint32_t vpn = vaddr >> 12;  /* 4 KB pages → 12-bit offset */
-
     /* Split VPN into L1 and L2 indices */
-    uint32_t l1_index = (vpn >> 10) & 0x3FF;  /* top 10 bits of VPN */
-    uint32_t l2_index = vpn & 0x3FF;          /* bottom 10 bits of VPN */
+    pt_idx_t l1_index = GET_L1_INDEX(vaddr);  /* top 10 bits of VPN */
+    pt_idx_t l2_index = GET_L2_INDEX(vaddr); /* bottom 10 bits of VPN */
 
     struct l2_ptable* l2 = pt->l2_entries[l1_index];
     if (l2 == NULL) {
@@ -103,4 +100,40 @@ struct pte* pagetable_lookup(struct pagetable* pt, vaddr_t vaddr) {
     }
 
     return &l2->entries[l2_index];
+}
+
+int pagetable_insert(struct pagetable *pt, vaddr_t vaddr, paddr_t paddr, bool readonly) {
+    KASSERT(pt != NULL);
+    KASSERT(paddr != 0);
+
+    pt_idx_t l1_index = GET_L1_INDEX(vaddr);
+    pt_idx_t l2_index = GET_L2_INDEX(vaddr);
+
+    /* Create new l2 table if it doesn't exist */
+    if (pt->l2_entries[l1_index] == NULL) {
+        /* 
+         *A call to alloc_kpages might be faster since the l2_table
+         * fits into one page, but this seems safer
+         */
+        struct l2_ptable *new_l2 = kmalloc(sizeof(struct l2_ptable));
+
+        if (new_l2 == NULL) {
+            return ENOMEM;
+        }
+
+        bzero((void*)new_l2, sizeof(struct l2_ptable));
+
+        pt->l2_entries[l1_index] = new_l2;
+    }
+
+    struct l2_ptable *l2 = pt->l2_entries[l1_index];
+    struct pte *entry = &l2->entries[l2_index];
+
+    entry->ppn = PADDR_TO_PPAGE(paddr);
+    entry->in_mem = true;
+    entry->valid = true;
+    entry->readonly = readonly;
+    entry->dirty = false;
+
+    return 0;
 }

@@ -57,6 +57,14 @@ as_create(void)
         return NULL;
     }
 
+    as->as_lock = lock_create("addr_space_lock");
+
+    if (!as->as_lock) {
+        pagetable_destroy(as->pt);
+        kfree(as);
+        return NULL;
+    }
+
     as->region_list = NULL;
 
 	/* Heap should be empty and grows from 0 */

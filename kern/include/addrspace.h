@@ -36,6 +36,7 @@
 
 
 #include <vm.h>
+#include <synch.h>
 #include "opt-dumbvm.h"
 #include <pagetable.h>
 
@@ -69,6 +70,8 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
     struct pagetable* pt;
+
+    struct lock *as_lock;
 
     struct region* region_list; /* linked list of memory regions */
 
