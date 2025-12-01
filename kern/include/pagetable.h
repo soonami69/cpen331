@@ -23,7 +23,7 @@ struct pte {
     bool in_mem; /* Is the page in phyiscal memory? */
     bool readonly; /* Is the page read-only? */
     bool dirty;    /* Has the page been written to? */
-    paddr_t ppn; /* Physical page number */
+    pp_num_t ppn; /* Physical page number */
 };
 
 /* A two-level page table structure */

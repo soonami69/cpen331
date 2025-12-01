@@ -5,9 +5,12 @@
 #include <vm.h>
 #include <synch.h>
 #include <proc.h>
+#include <spl.h>
+#include <mips/tlb.h>
 
 struct coremap *cm;
 struct spinlock cm_spinlock = SPINLOCK_INITIALIZER;
+struct spinlock tlb_spinlock = SPINLOCK_INITIALIZER;
 volatile size_t cm_page_count;
 
 pp_num_t first_page;
@@ -224,9 +227,28 @@ static int get_region_permissions(struct addrspace *as, vaddr_t vaddr,
     return EFAULT;
 }
 
+static unsigned int tlb_next_victim = 0;
+
+static void tlb_insert_entry(uint32_t entryhi, uint32_t entrylo) {
+    /* We use a simple round robin strategy */
+    int i;
+
+    for (i = 0; i < NUM_TLB; i++) {
+        uint32_t hi, lo;
+        tlb_read(&hi, &lo, i);
+
+        if (!(lo & TLBLO_VALID)) {
+            tlb_write(entryhi, entrylo, i);
+            return;
+        }
+    }
+
+    tlb_write(entryhi, entrylo, tlb_next_victim);
+    tlb_next_victim = (tlb_next_victim + 1) % NUM_TLB;
+}
+
 int vm_fault(int faulttype, vaddr_t faultaddress) {
     struct addrspace *as;
-    paddr_t paddr;
     int result;
 
     as = proc_getas();
@@ -247,15 +269,15 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* If no mapping exists, create a new page */
     if (entry == NULL || !entry->valid) {
-        paddr = alloc_kpages(1);
+        vaddr_t vaddr = alloc_kpages(1);
 
-        if (paddr == 0) {
+        if (vaddr == 0) {
             lock_release(as->as_lock);
             return ENOMEM;
         }
 
         /* Zero the page */
-        bzero((void*)PADDR_TO_KVADDR(paddr), PAGE_SIZE);
+        bzero((void*)vaddr, PAGE_SIZE);
 
         /* Check region permissions */
         bool readable, writeable, executable;
@@ -263,12 +285,14 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         result = get_region_permissions(as, faultaddress, &readable, &writeable, &executable);
 
         if (result) {
-            free_kpages(PADDR_TO_KVADDR(paddr));
+            free_kpages(vaddr);
             lock_release(as->as_lock);
             return EFAULT;
         }
 
         bool readonly = !writeable;
+
+        paddr_t paddr = KVADDR_TO_PADDR(vaddr);
 
         result = pagetable_insert(as->pt, faultaddress, paddr, readonly);
         
@@ -295,8 +319,28 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     }
 
     /*
-     * TODO: TLB SHENANIGANS HERE
+     * TLB SHENANIGANS HERE
      */
+    uint32_t entryhi = faultaddress & TLBHI_VPAGE;
+    uint32_t entrylo = (PPAGE_TO_PADDR(entry->ppn) & TLBLO_PPAGE) | TLBLO_VALID;
+
+    if (!entry->readonly) {
+        entrylo |= TLBLO_DIRTY;
+    }
+
+    bool holding_tlblock = spinlock_do_i_hold(&tlb_spinlock);
+
+    if (!holding_tlblock) {
+        spinlock_acquire(&tlb_spinlock);
+    }
+
+    int spl = splhigh();
+    tlb_insert_entry(entryhi, entrylo);
+    splx(spl);
+
+    if (!holding_tlblock) {
+        spinlock_release(&tlb_spinlock);
+    }
 
     lock_release(as->as_lock);
     return 0;

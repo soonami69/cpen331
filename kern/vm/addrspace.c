@@ -29,10 +29,12 @@
 
 #include <types.h>
 #include <kern/errno.h>
+#include <mips/tlb.h>
 #include <lib.h>
 #include <addrspace.h>
 #include <proc.h>
 #include <vm.h>
+#include <spl.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -71,7 +73,7 @@ as_create(void)
     as->heap_start = 0;
     as->heap_end = 0;
 
-    as->stack_base = USERSTACK;
+    as->stack_base = USERSTACK - STACK_SIZE;
 
     return as;
 }
@@ -188,9 +190,15 @@ as_activate(void)
 		return;
 	}
 
-    /*
-     * Write this. ROY IMPLEMENT THIS <-------
-     */
+    spinlock_acquire(&tlb_spinlock);
+    int spl = splhigh();
+
+    for (int i = 0; i < NUM_TLB; i++) {
+        tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+    }
+
+    splx(spl);
+    spinlock_release(&tlb_spinlock);
 }
 
 void

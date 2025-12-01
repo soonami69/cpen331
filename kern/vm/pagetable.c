@@ -6,6 +6,31 @@
 #include <pagetable.h>
 #include <vm.h>
 
+static int copy_entry(struct pte *src, struct pte *ret) {
+    if (!src->valid) {
+        /* No page, copy the metadata */
+        *ret = *src;
+        return 0;
+    }
+
+    vaddr_t kvaddr = alloc_kpages(1);
+    if (kvaddr == 0) {
+        return ENOMEM;
+    }
+
+    vaddr_t parent_kv = PADDR_TO_KVADDR(PPAGE_TO_PADDR(src->ppn));
+    memcpy((void*)kvaddr, (void*)parent_kv, PAGE_SIZE);
+
+    /* Fill in metadata */
+    ret->valid = true;
+    ret->in_mem = true;
+    ret->readonly = src->readonly;
+    ret->dirty = false;
+    ret->ppn = PADDR_TO_PPAGE(KVADDR_TO_PADDR(kvaddr));
+
+    return 0;
+}
+
 static int l2_ptable_copy(struct l2_ptable *src, struct l2_ptable **ret) {
     struct l2_ptable *newtable = kmalloc(sizeof(struct l2_ptable));
 
@@ -14,7 +39,18 @@ static int l2_ptable_copy(struct l2_ptable *src, struct l2_ptable **ret) {
     }
 
     for (int i = 0; i < L2_SIZE; i++) {
-        newtable->entries[i] = src->entries[i];
+        int err = copy_entry(&src->entries[i], &newtable->entries[i]);
+
+        if (err) {
+            /* Cleanup previously allocated pages */
+            for (int j = 0; j < i; j++) {
+                if (newtable->entries[j].valid && newtable->entries[j].in_mem) {
+                    free_kpages(PPAGE_TO_PADDR(PADDR_TO_KVADDR(newtable->entries[j].ppn)));
+                }
+            }
+            kfree(newtable);
+            return ENOMEM;
+        }
     }
 
     *ret = newtable;
