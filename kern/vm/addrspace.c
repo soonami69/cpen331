@@ -253,6 +253,12 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
         curr->next = r;
     }
 
+    if ((vbase + npages * PAGE_SIZE) > as->heap_start) {
+        vaddr_t new_heap_start = (vbase + npages * PAGE_SIZE + PAGE_SIZE - 1) & PAGE_FRAME;
+        as->heap_start = new_heap_start;
+        as->heap_end = as->heap_start;
+    }
+
     return 0;
 }
 

@@ -129,9 +129,10 @@ boot(void)
 
 	/* Late phase of initialization. */
 	kprintf_bootstrap();
-	thread_start_cpus();
+    exec_bootstrap();
+    thread_start_cpus();
 
-	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
+    /* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
 
 	kheap_nextgeneration();

@@ -346,9 +346,31 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     return 0;
 }
 
+
+
 void vm_tlbshootdown_all(void) {
+    spinlock_acquire(&tlb_spinlock);
+
+    int spl = splhigh();
+
+    for (int i = 0; i < NUM_TLB; i++) {
+        tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+    }
+
+        splx(spl);
+    spinlock_release(&tlb_spinlock);
 }
 
 void vm_tlbshootdown(const struct tlbshootdown *tlb) {
-    (void)tlb;
+    spinlock_acquire(&tlb_spinlock);
+    int spl = splhigh();
+
+    int idx = tlb_probe(tlb->vaddr & TLBHI_VPAGE, 0);
+
+    if (idx >= 0) {
+        tlb_write(TLBHI_INVALID(idx), TLBLO_INVALID(), idx);
+    }
+
+    splx(spl);
+    spinlock_release(&tlb_spinlock);
 }

@@ -51,6 +51,8 @@ void enter_forked_process(struct trapframe *tf);
 __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 		       vaddr_t stackptr, vaddr_t entrypoint);
 
+/* Setup function for exec. */
+void exec_bootstrap(void);
 
 /*
  * Prototypes for IN-KERNEL entry points for system call implementations.
@@ -63,6 +65,7 @@ int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 int sys_fork(struct trapframe *tf, pid_t *retval);
+int sys_execv(userptr_t prog, userptr_t args);
 __DEAD void sys__exit(int code);
 int sys_waitpid(pid_t pid, userptr_t returncode, int flags, pid_t *retval);
 int sys_getpid(pid_t *retval);
@@ -77,5 +80,6 @@ int sys_lseek(int fd, off_t offset, int code, off_t *retval);
 int sys_chdir(const_userptr_t path);
 int sys___getcwd(userptr_t buf, size_t buflen, int *retval);
 
+int sys_sbrk(ssize_t amount, int *retval);
 
 #endif /* _SYSCALL_H_ */
