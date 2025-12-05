@@ -340,6 +340,7 @@ file      proc/pid.c
 
 file      vm/kmalloc.c
 file      vm/pagetable.c
+file      vm/swap.c
 optofffile dumbvm   arch/mips/vm/vm.c
 optofffile dumbvm   syscall/vm_syscalls.c
 optofffile dumbvm   vm/addrspace.c

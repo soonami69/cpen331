@@ -43,6 +43,7 @@
 #include <current.h>
 #include <synch.h>
 #include <vm.h>
+#include <swap.h>
 #include <mainbus.h>
 #include <vfs.h>
 #include <device.h>
@@ -126,6 +127,11 @@ boot(void)
 	pseudoconfig();
 	kprintf("\n");
 	kheap_nextgeneration();
+
+	int swerr = swap_bootstrap();
+	if (swerr) {
+		panic("Unable to initialize swap device: %d\n", swerr);
+	}
 
 	/* Late phase of initialization. */
 	kprintf_bootstrap();
