@@ -5,6 +5,7 @@
 #include <lib.h>
 #include <pagetable.h>
 #include <vm.h>
+#include <swap.h>
 
 static int copy_entry(struct pte *src, struct pte *ret) {
     if (!src->valid) {
@@ -26,6 +27,7 @@ static int copy_entry(struct pte *src, struct pte *ret) {
     ret->in_mem = true;
     ret->readonly = src->readonly;
     ret->dirty = false;
+    ret->swap_offset = src->swap_offset;
     ret->ppn = PADDR_TO_PPAGE(KVADDR_TO_PADDR(kvaddr));
 
     return 0;
@@ -60,6 +62,12 @@ static int l2_ptable_copy(struct l2_ptable *src, struct l2_ptable **ret) {
 static void l2_ptable_destroy(struct l2_ptable *l2) {
     if (!l2) {
         return;
+    }
+
+    for (int i = 0; i < L2_SIZE; i++) {
+        if (l2->entries[i].valid && !l2->entries[i].in_mem && l2->entries[i].swap_offset != SWAP_OFFSET_NONE) {
+            swap_free_slot(l2->entries[i].swap_offset);
+        }
     }
 
     kfree(l2);
@@ -170,6 +178,7 @@ int pagetable_insert(struct pagetable *pt, vaddr_t vaddr, paddr_t paddr, bool re
     entry->valid = true;
     entry->readonly = readonly;
     entry->dirty = false;
+    entry->swap_offset = SWAP_OFFSET_NONE;
 
     return 0;
 }

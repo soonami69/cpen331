@@ -23,6 +23,7 @@ struct pte {
     bool in_mem; /* Is the page in phyiscal memory? */
     bool readonly; /* Is the page read-only? */
     bool dirty;    /* Has the page been written to? */
+    off_t swap_offset; /* Where this page lives on swap if evicted */
     pp_num_t ppn; /* Physical page number */
 };
 

@@ -48,11 +48,16 @@ extern struct spinlock tlb_spinlock;
 extern struct spinlock cm_spinlock;
 
 typedef __u32 pp_num_t;
+struct addrspace;
 
 struct cm_entry {
     bool used;
     bool kmalloc_end;
     bool dirty;
+    bool kernel_page;
+    bool busy;
+    struct addrspace *owner;
+    vaddr_t vaddr;
     pp_num_t pp_num;
 };
 

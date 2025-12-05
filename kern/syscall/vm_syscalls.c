@@ -6,6 +6,7 @@
 #include <proc.h>
 #include <cpu.h>
 #include <vm.h>
+#include <swap.h>
 #include <pagetable.h>
 
 static void free_heap_pages(struct addrspace *as, vaddr_t new_end, vaddr_t old_end) {
@@ -27,9 +28,13 @@ static void free_heap_pages(struct addrspace *as, vaddr_t new_end, vaddr_t old_e
             paddr_t paddr = PPAGE_TO_PADDR(entry->ppn);
             free_kpages(PADDR_TO_KVADDR(paddr));
         }
+        if (!entry->in_mem && entry->swap_offset != SWAP_OFFSET_NONE) {
+            swap_free_slot(entry->swap_offset);
+        }
 
         entry->valid = false;
         entry->in_mem = false;
+        entry->swap_offset = SWAP_OFFSET_NONE;
 
         struct tlbshootdown tlb;
         tlb.vaddr = vaddr;
